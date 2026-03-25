@@ -10,12 +10,6 @@ function validateContent(content) {
     return null;
 }
 
-function validateUsername(username) {
-    if(!username || username.trim() === "") {
-        return "Username boş bırakılamaz."
-    }
-    return null;
-}
 
 function validateAvatar(avatar) {
     if (!avatar || avatar.trim() === "") {
@@ -24,8 +18,36 @@ function validateAvatar(avatar) {
     return null;
 }
 
+function validateEmail(email) {
+    if(!email || email.trim() === "") {
+        return "Email boş bırakılamaz.";
+    }
+    return null;
+}
+
+function validateUsername(username) {
+    if(!username || username.trim() === "") {
+        return "Username boş bırakılamaz."
+    }
+
+    return null;
+}
+
+function validatePassword(password) {
+    if(!password || password.trim() === "") {
+        return "Şifre boş bırakılamaz.";
+    }
+    if(password.trim().length < 6) {
+        return "Şifre 6 karakterden kısa olamaz."
+    }
+
+    return null;
+}
+
 module.exports = {
     validateContent,
+    validateAvatar,
+    validateEmail,
     validateUsername,
-    validateAvatar
+    validatePassword
 };
