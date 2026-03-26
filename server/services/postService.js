@@ -1,5 +1,21 @@
-const { users } = require("../data/users")
+const { users } = require("../data/users");
 const { posts } = require("../data/posts");
+const { buildPostResponse, buildCommentResponse } = require("../../utils/userMapper");
+
+function shapeComment(comment) {
+    const commentAuthor = users.find(user => user.id === comment.authorId);
+
+    const shapedComment = buildCommentResponse(comment, commentAuthor);
+    return shapedComment;
+}
+
+function shapePost(post) {
+    const postAuthor = users.find(user => user.id === post.authorId );
+
+    const comments = post.comments.map(comment => shapeComment(comment));
+
+    return buildPostResponse(post, postAuthor, comments);
+}
 
 function createPostService(authorId, content) {
     const user = users.find(user => user.id === Number(authorId));
@@ -23,17 +39,21 @@ function createPostService(authorId, content) {
     };
 
     posts.push(newPost);
-    return newPost;
+
+    return shapePost(newPost);
 }
 
 function getAllPostsService() {
-    return [...posts].sort(
+    
+    const shapedPosts = posts.map(post => shapePost(post));
+
+    return [...shapedPosts].sort(
         (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
     );
 }
 
-function deletePostService(id) {
-    const index = posts.findIndex(post => post.id === Number(id));
+function deletePostService(postId) {
+    const index = posts.findIndex(post => post.id === Number(postId));
 
     if (index === -1) {
         return null;
@@ -43,8 +63,8 @@ function deletePostService(id) {
     return deletedPost;
 }
 
-function likePostService(id) {
-    const post = posts.find(post => post.id === Number(id));
+function likePostService(postId) {
+    const post = posts.find(post => post.id === Number(postId));
 
     if (!post) {
         return null;
@@ -54,18 +74,18 @@ function likePostService(id) {
     return post;
 }
 
-function getPostByIdService(id) {
-    const post = posts.find(post => post.id === Number(id));
+function getPostByIdService(postId) {
+    const post = posts.find(post => post.id === Number(postId));
 
     if (!post) {
         return null;
     }
 
-    return post;
+    return shapePost(post);
 }
 
-function updatePostService(id, content) {
-    const post = posts.find(post => post.id === Number(id));
+function updatePostService(postId, content) {
+    const post = posts.find(post => post.id === Number(postId));
 
     if (!post) {
         return null;
@@ -74,11 +94,11 @@ function updatePostService(id, content) {
     post.content = content;
     post.updatedAt = new Date().toISOString();
 
-    return post;
+    return shapePost(post);;
 }
 
-function addCommentService(id, authorId, content) {
-    const post = posts.find(post => post.id === Number(id));
+function addCommentService(postId, authorId, content) {
+    const post = posts.find(post => post.id === Number(postId));
 
     if (!post) {
         return "POST_NOT_FOUND";
@@ -104,17 +124,20 @@ function addCommentService(id, authorId, content) {
     };
 
     post.comments.push(newComment);
-    return newComment;
+    return shapeComment(newComment);
 }
 
-function getCommentsByPostIdService(id) {
-    const post = posts.find(post => post.id === Number(id));
+function getCommentsByPostIdService(postId) {
+
+    const post = posts.find(post => post.id === Number(postId));
 
     if (!post) {
         return null;
     }
 
-    return post.comments;
+    const shapedComments = post.comments.map(comment => shapeComment(comment));
+
+    return shapedComments;
 }
 
 function deleteCommentService(postId, commentId) {
@@ -154,7 +177,7 @@ function updateCommentService(postId, commentId, content) {
     comment.content = content;
     comment.updatedAt = new Date().toISOString();
 
-    return comment;
+    return shapeComment(comment);
 }
 
 function likeCommentService(postId, commentId) {
@@ -176,7 +199,26 @@ function likeCommentService(postId, commentId) {
     return comment;
 }
 
+function getCommentByIdService(postId, commentId) {
+    const post = posts.find(post => post.id === Number(postId));
+
+    if(!post) {
+        return "POST_NOT_FOUND";
+    }
+
+    const comment = post.comments.find(comment => comment.id === Number(commentId));
+
+    if(!comment) {
+        return "COMMENT_NOT_FOUND";
+    }
+
+    return shapeComment(comment);
+
+}
+
 module.exports = {
+    shapeComment,
+    shapePost,
     createPostService,
     getAllPostsService,
     deletePostService,
@@ -187,5 +229,6 @@ module.exports = {
     getCommentsByPostIdService,
     deleteCommentService,
     updateCommentService,
-    likeCommentService
+    likeCommentService,
+    getCommentByIdService
 };

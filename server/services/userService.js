@@ -1,5 +1,6 @@
-const { buildSafeUser } = require("../../utils/userMapper");
-const { users } = require("../data/users")
+const { buildSafeUser, buildPostResponse, buildCommentResponse } = require("../../utils/userMapper");
+const { shapePost, shapeComment } = require("./postService");
+const { users } = require("../data/users");
 const { posts } = require("../data/posts");
 
 function registerUserService(username, email, password, avatar, bio) {
@@ -52,8 +53,8 @@ function getAllUsersService() {
     return users.map(buildSafeUser);
 }
 
-function getUserByIdService(id) {
-    const user = users.find(user => user.id === Number(id));
+function getUserByIdService(userId) {
+    const user = users.find(user => user.id === Number(userId));
 
     if (!user) {
         return "USER_NOT_FOUND";
@@ -62,20 +63,19 @@ function getUserByIdService(id) {
     return buildSafeUser(user);
 }
 
-function updateUserService(id, username, email, avatar, bio) {
-    const userId = Number(id);
-    const user = users.find(user => user.id === userId);
+function updateUserService(userId, username, email, avatar, bio) {
+    const user = users.find(user => user.id === Number(userId));
 
     if (!user) {
         return "USER_NOT_FOUND";
     }
 
     const existingEmail = users.find(
-        user => user.email === email && user.id !== userId
+        user => user.email === email && user.id !== Number(userId)
     );
 
     const existingUsername = users.find(
-        user => user.username === username && user.id !== userId
+        user => user.username === username && user.id !== Number(userId)
     );
 
     if (email !== undefined && existingEmail) {
@@ -107,8 +107,8 @@ function updateUserService(id, username, email, avatar, bio) {
     return buildSafeUser(user);
 }
 
-function deleteUserService(id) {
-    const index = users.findIndex(user => user.id === Number(id));
+function deleteUserService(userId) {
+    const index = users.findIndex(user => user.id === Number(userId));
 
     if (index === -1) {
         return "USER_NOT_FOUND";
@@ -119,22 +119,24 @@ function deleteUserService(id) {
     return buildSafeUser(deletedUser);
 }
 
-function getPostsByUserIdService(id) {
-    const userId = Number(id);
+function getPostsByUserIdService(userId) {
 
-    const user = users.find(user => user.id === userId);
+    const user = users.find(user => user.id === Number(userId));
 
     if (!user) {
         return "USER_NOT_FOUND";
     }
 
-    return posts.filter(post => post.authorId === userId);
+    const userPosts = posts.filter(post => post.authorId === Number(userId)); 
+
+
+    const shapedPosts = userPosts.map(post => shapePost(post));
+
+    return shapedPosts;
 }
 
-function getCommentsByUserIdService(id) {
-    const userId = Number(id);
-
-    const user = users.find(user => user.id === userId);
+function getCommentsByUserIdService(userId) {
+    const user = users.find(user => user.id === Number(userId));
 
     if (!user) {
         return "USER_NOT_FOUND";
@@ -143,15 +145,12 @@ function getCommentsByUserIdService(id) {
     const userComments = [];
 
     posts.forEach(post => {
-        const matchedComments = post.comments.filter(
-            comment => comment.authorId === userId
-        );
+        const matchedComments = post.comments.filter(comment => comment.authorId === Number(userId));
 
-        matchedComments.forEach(comment => {
-            userComments.push(comment);
-        });
-    });
+        const shaped = matchedComments.map(comment => shapeComment(comment));
 
+        userComments.push(...shaped);
+    })
     return userComments;
 }
 

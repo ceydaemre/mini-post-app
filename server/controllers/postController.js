@@ -9,7 +9,8 @@ const {
     getCommentsByPostIdService,
     deleteCommentService,
     updateCommentService,
-    likeCommentService
+    likeCommentService,
+    getCommentByIdService
 } = require("../services/postService");
 
 const { validateContent } = require("../../utils/validation");
@@ -252,6 +253,29 @@ function likeComment(req, res) {
     });
 }
 
+function getCommentById(req, res) {
+    const { postId, commentId } = req.params;
+
+    const comment = getCommentByIdService(postId, commentId);
+
+    if(comment === "POST_NOT_FOUND"){
+        return res.status(404).json({
+            message : "Kullanıcı bulunamadı."
+        });
+    }
+
+    if(comment === "COMMENT_NOT_FOUND"){
+        return res.status(404).json({
+            message : "Yorum bulunamadı."
+        });
+    }
+
+    return res.status(200).json({
+        message : "Yorum getirildi.",
+        data : comment
+    });
+}
+
 module.exports = {
     createPost,
     getAllPosts,
@@ -263,5 +287,6 @@ module.exports = {
     getCommentsByPostId,
     deleteComment,
     updateComment,
-    likeComment
+    likeComment,
+    getCommentById
 };
