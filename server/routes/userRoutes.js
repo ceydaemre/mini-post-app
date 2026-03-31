@@ -14,7 +14,7 @@ const {
 
 router.get("/", getAllUsers);
 
-router.get("/:id/posts", getPostsByUserId); //shaped
+router.get("/:id/posts", getPostsByUserId);
 router.get("/:id/comments", getCommentsByUserId);
 router.get("/:id", getUserById);
 

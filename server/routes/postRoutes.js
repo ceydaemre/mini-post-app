@@ -16,19 +16,23 @@ const {
     getCommentById
 } = require("../controllers/postController");
 
-router.post("/", createPost); //shaped
-router.get("/", getAllPosts);///yap ok
+const authMiddleware = require("../middleware/authMiddleware");
+const optionalAuthMiddleware = require("../middleware/optionalAuthMiddleware");
 
-router.get("/:id", getPostById); //shaped
-router.patch("/:id", updatePost);///yap ok 
-router.delete("/:id", deletePost);
-router.patch("/:id/likes", likePost);
+router.post("/", authMiddleware, createPost);
+router.get("/", optionalAuthMiddleware, getAllPosts);
 
-router.post("/:id/comments", addComment); ///yap ok 
-router.get("/:id/comments", getCommentsByPostId); //shaped
+router.get("/:id", optionalAuthMiddleware, getPostById);
+router.patch("/:id", authMiddleware, updatePost);
+router.delete("/:id", authMiddleware, deletePost);
+router.patch("/:id/likes", authMiddleware, likePost);
 
-router.delete("/:postId/comments/:commentId", deleteComment);
-router.patch("/:postId/comments/:commentId", updateComment); ///yap ok 
-router.patch("/:postId/comments/:commentId/likes", likeComment);
-router.get("/:postId/comments/:commentId", getCommentById);
+router.post("/:id/comments", authMiddleware, addComment);
+router.get("/:id/comments", optionalAuthMiddleware, getCommentsByPostId);
+
+router.delete("/:postId/comments/:commentId", authMiddleware, deleteComment);
+router.patch("/:postId/comments/:commentId", authMiddleware, updateComment);
+router.patch("/:postId/comments/:commentId/likes", authMiddleware, likeComment);
+router.get("/:postId/comments/:commentId", optionalAuthMiddleware, getCommentById);
+
 module.exports = router;

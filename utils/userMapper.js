@@ -1,49 +1,55 @@
 function buildSafeUser(user) {
-    return {
-      id: user.id,
-      username: user.username,
-      email: user.email,
-      avatar: user.avatar,
-      bio: user.bio,
-      createdAt: user.createdAt,
-      updatedAt: user.updatedAt,
-    };
+  return {
+    id: user.id,
+    username: user.username,
+    email: user.email,
+    avatar: user.avatar,
+    bio: user.bio,
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt,
+  };
 }
 
 function buildPublicUser(user) {
   return {
-    id : user.id,
-    username : user.username,
-    avatar : user.avatar
+    id: user.id,
+    username: user.username,
+    avatar: user.avatar
   };
 }
 
-function buildCommentResponse(comment, author) {
+function buildCommentResponse(comment, author, currentUserId) {
   return {
-    id : comment.id,
-    content : comment.content,
-    likes : comment.likes,
-    createdAt : comment.createdAt,
-    updatedAt : comment.updatedAt,
-    author : buildPublicUser(author)
+    id: comment.id,
+    content: comment.content,
+    isLikedByCurrentUser: currentUserId
+      ? comment.likes.includes(Number(currentUserId))
+      : false,
+    likesCount: comment.likes.length,
+    createdAt: comment.createdAt,
+    updatedAt: comment.updatedAt,
+    author: buildPublicUser(author)
   };
 }
 
-function buildPostResponse(post, author, comments) {
+function buildPostResponse(post, author, comments, currentUserId) {
   return {
-    id : post.id,
-    content : post.content,
-    likes : post.likes,
-    createdAt : post.createdAt,
-    updatedAt : post.updatedAt,
-    author : buildPublicUser(author),
-    comments : comments
+    id: post.id,
+    content: post.content,
+    isLikedByCurrentUser: currentUserId
+      ? post.likes.includes(Number(currentUserId))
+      : false,
+    likesCount: post.likes.length,
+    createdAt: post.createdAt,
+    updatedAt: post.updatedAt,
+    author: buildPublicUser(author),
+    comments: comments
   };
 }
-  
+
 module.exports = {
-    buildSafeUser,
-    buildPublicUser,
-    buildCommentResponse,
-    buildPostResponse
+  buildSafeUser,
+  buildPublicUser,
+  buildCommentResponse,
+  buildPostResponse
 };

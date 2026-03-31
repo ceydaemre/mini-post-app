@@ -46,7 +46,12 @@ function loginUserService(email, password) {
         return "INVALID_PASSWORD";
     }
 
-    return buildSafeUser(user);
+    const token = "user-" + user.id;
+
+    return {
+        user: buildSafeUser(user),
+        token
+    };
 }
 
 function getAllUsersService() {
@@ -120,16 +125,13 @@ function deleteUserService(userId) {
 }
 
 function getPostsByUserIdService(userId) {
-
     const user = users.find(user => user.id === Number(userId));
 
     if (!user) {
         return "USER_NOT_FOUND";
     }
 
-    const userPosts = posts.filter(post => post.authorId === Number(userId)); 
-
-
+    const userPosts = posts.filter(post => post.authorId === Number(userId));
     const shapedPosts = userPosts.map(post => shapePost(post));
 
     return shapedPosts;
@@ -145,12 +147,15 @@ function getCommentsByUserIdService(userId) {
     const userComments = [];
 
     posts.forEach(post => {
-        const matchedComments = post.comments.filter(comment => comment.authorId === Number(userId));
+        const matchedComments = post.comments.filter(
+            comment => comment.authorId === Number(userId)
+        );
 
         const shaped = matchedComments.map(comment => shapeComment(comment));
 
         userComments.push(...shaped);
-    })
+    });
+
     return userComments;
 }
 
