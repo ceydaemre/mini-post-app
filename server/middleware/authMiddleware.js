@@ -35,11 +35,11 @@ function authMiddleware(req, res, next) {
 
     const user = users.find(user => user.id === userId);
 
-    if (!user) {
+   if(!user) {
         return res.status(401).json({
-            message: "Yetkisiz erişim.Kullanıcı bulunamadı."
+            message : "Yetkisiz erişim.Kullanıcı bulunamadı.",
         });
-    }
+   }
 
     req.user = user;
     next();

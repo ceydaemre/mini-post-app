@@ -13,7 +13,9 @@ const {
     deleteComment,
     updateComment,
     likeComment,
-    getCommentById
+    getCommentById,
+    repostPost,
+    quoteRepostPost
 } = require("../controllers/postController");
 
 const authMiddleware = require("../middleware/authMiddleware");
@@ -25,7 +27,10 @@ router.get("/", optionalAuthMiddleware, getAllPosts);
 router.get("/:id", optionalAuthMiddleware, getPostById);
 router.patch("/:id", authMiddleware, updatePost);
 router.delete("/:id", authMiddleware, deletePost);
+router.patch("/:id/repost",authMiddleware ,repostPost);
 router.patch("/:id/likes", authMiddleware, likePost);
+router.post("/:id/quote-repost", authMiddleware, )
+router.post("/:id/quote-repost", authMiddleware, quoteRepostPost);
 
 router.post("/:id/comments", authMiddleware, addComment);
 router.get("/:id/comments", optionalAuthMiddleware, getCommentsByPostId);

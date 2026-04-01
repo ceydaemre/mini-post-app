@@ -12,7 +12,9 @@ const {
     likeCommentService,
     getCommentByIdService,
     findPostByIdService,
-    findCommentByIdService
+    findCommentByIdService,
+    repostPostService,
+    quoteRepostPostService
 } = require("../services/postService");
 
 const { validateContent } = require("../../utils/validation");
@@ -358,6 +360,98 @@ function getCommentById(req, res) {
     });
 }
 
+function repostPost(req, res) {
+    const postId = req.params.id;
+    const userId = req.user.id;
+    const result = repostPostService(postId, userId);
+
+    if(result === "POST_NOT_FOUND") {
+        return res.status(404).json({
+            message : "Post bulunamadı."
+        });
+    }
+
+    const message = 
+        result.action === "REPOSTED"
+        ? "Post repostlandı."
+        : "Repost geri alındı.";
+
+    return res.status(200).json({
+        message,
+        data : result.post
+    });
+}
+
+function quoteRepostPost(req, res) {
+    const originalPostId = req.params.id;
+    const userId = req.user.id;
+    const content = req.body.content;
+
+    const contentError = validateContent(content);
+
+    if(contentError) {
+        return res.status(400).json({
+            message : contentError
+        });
+    }
+
+    const result = quoteRepostPostService(originalPostId, userId, content.trim());
+
+    if(result === "USER_NOT_FOUND") {
+        return res.status(404).json({
+            message : "Kullanıcı bulunamadı." 
+        });
+    }
+
+    if(result === "POST_NOT_FOUND") {
+        return res.status(404).json({
+            message : "Post bulunamadı."
+        });
+    }
+
+    return res.status(201).json({
+        message : "Post alıntılandı.",
+        data : result
+    });
+}
+
+function quoteRepostPost(req, res) {
+    const originalPostId = req.params.id;
+    const userId = req.user.id;
+    const content = req.body.content;
+
+    const contentError = validateContent(content);
+
+    if (contentError) {
+        return res.status(400).json({
+            message: contentError
+        });
+    }
+
+    const result = quoteRepostPostService(
+        originalPostId,
+        userId,
+        content.trim()
+    );
+
+    if (result === "USER_NOT_FOUND") {
+        return res.status(404).json({
+            message: "Kullanıcı bulunamadı."
+        });
+    }
+
+    if (result === "POST_NOT_FOUND") {
+        return res.status(404).json({
+            message: "Post bulunamadı."
+        });
+    }
+
+    return res.status(201).json({
+        message: "Quote repost oluşturuldu.",
+        data: result
+    });
+}
+
 module.exports = {
     createPost,
     getAllPosts,
@@ -370,5 +464,7 @@ module.exports = {
     deleteComment,
     updateComment,
     likeComment,
-    getCommentById
+    getCommentById,
+    repostPost,
+    quoteRepostPost
 };

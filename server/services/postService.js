@@ -12,11 +12,50 @@ function shapeComment(comment, currentUserId) {
 function shapePost(post, currentUserId) {
     const postAuthor = users.find(user => user.id === post.authorId);
 
-    const comments = post.comments.map(comment => shapeComment(comment, currentUserId));
+    const comments = post.comments.map(comment =>
+        shapeComment(comment, currentUserId)
+    );
 
-    return buildPostResponse(post, postAuthor, comments, currentUserId);
+    let originalPost = null;
+
+    if (post.originalPostId) {
+        const foundOriginalPost = posts.find(
+            p => p.id === post.originalPostId
+        );
+
+        if (foundOriginalPost) {
+            originalPost = shapePost(foundOriginalPost, currentUserId);
+        }
+    }
+
+    const quoteRepostCount = posts.filter(
+        p => p.originalPostId === post.id
+    ).length;
+
+    const repostsCount =
+        post.reposts.length + quoteRepostCount;
+
+    const hasReposted =
+        post.reposts.includes(Number(currentUserId)) ||
+        posts.some(p =>
+            p.originalPostId === post.id &&
+            p.authorId === Number(currentUserId)
+        );
+
+    const shaped = buildPostResponse(
+        post,
+        postAuthor,
+        comments,
+        currentUserId
+    );
+
+    return {
+        ...shaped,
+        repostsCount,
+        isRepostedByCurrentUser: hasReposted,
+        originalPost
+    };
 }
-
 function createPostService(authorId, content) {
     const user = users.find(user => user.id === Number(authorId));
 
@@ -35,7 +74,9 @@ function createPostService(authorId, content) {
         likes: [],
         createdAt: new Date().toISOString(),
         updatedAt: null,
-        comments: []
+        originalPostId : null,
+        comments: [],
+        reposts: [],
     };
 
     posts.push(newPost);
@@ -261,6 +302,64 @@ function getCommentByIdService(postId, commentId, currentUserId) {
     return shapeComment(comment, currentUserId);
 }
 
+function repostPostService(postId, userId) {
+    const post = posts.find(post => post.id === Number(postId));
+
+    if(!post) {
+        return "POST_NOT_FOUND";
+    }
+
+    const repostIndex = post.reposts.findIndex(repost => repost === Number(userId));
+
+    if(repostIndex === -1) {
+        post.reposts.push(Number(userId));
+        return {
+            action : "REPOSTED",
+            post : shapePost(post, userId)
+        };
+    } else {
+        post.reposts.splice(repostIndex, 1);
+        return {
+            action : "UNREPOSTED",
+            post : shapePost(post, userId)
+        };
+    }
+    
+}
+
+function quoteRepostPostService(originalPostId, userId, content) {
+    const originalPost = posts.find(post => post.id === Number(originalPostId));
+
+    if(!originalPost) {
+        return "POST_NOT_FOUND";
+    }
+
+    const user = users.find(user => user.id === Number(userId));
+
+    if(!user) {
+        return "USER_NOT_FOUND";
+    }
+
+    const maxId = posts.length > 0
+        ? Math.max(...posts.map(post => post.id))
+        : 0;
+
+    const newPost = {
+        id : maxId + 1,
+        authorId : Number(userId),
+        content,
+        likes : [],
+        createdAt : new Date().toISOString(),
+        updatedAt : null,
+        comments : [],
+        reposts : [],
+        originalPostId : Number(originalPostId)
+    }
+    posts.push(newPost);
+
+    return shapePost(newPost, userId);
+}
+
 module.exports = {
     shapeComment,
     shapePost,
@@ -277,5 +376,7 @@ module.exports = {
     deleteCommentService,
     updateCommentService,
     likeCommentService,
-    getCommentByIdService
+    getCommentByIdService,
+    repostPostService,
+    quoteRepostPostService
 };
