@@ -7,49 +7,45 @@ const {
     updateUserService,
     deleteUserService,
     getPostsByUserIdService,
-    getCommentsByUserIdService
+    getCommentsByUserIdService,
+    getProfilePostsByUserIdService,
+    getProfileRepliesByUserIdService,
 } = require("../services/userService");
 
 function registerUser(req, res) {
-    const { username, password, email, avatar, bio } = req.body;
+    const { username, password, email, avatar, bio, headerPhoto } = req.body;
 
     const usernameError = validateUsername(username);
-    const passwordError = validatePassword(password);
-    const emailError = validateEmail(email);
-
     if (usernameError) {
-        return res.status(400).json({
-            message: usernameError
-        });
+        return res.status(400).json({ message: usernameError });
     }
 
+    const passwordError = validatePassword(password);
     if (passwordError) {
-        return res.status(400).json({
-            message: passwordError
-        });
+        return res.status(400).json({ message: passwordError });
     }
 
+    const emailError = validateEmail(email);
     if (emailError) {
-        return res.status(400).json({
-            message: emailError
-        });
+        return res.status(400).json({ message: emailError });
     }
 
-    const safeUser = registerUserService(
+    const createdUser = registerUserService(
         username.trim(),
         email.trim(),
         password,
         avatar,
-        bio
+        bio,
+        headerPhoto
     );
 
-    if (safeUser === "EMAIL_ALREADY_EXISTS") {
+    if (createdUser === "EMAIL_ALREADY_EXISTS") {
         return res.status(409).json({
             message: "Bu email zaten kullanılıyor."
         });
     }
 
-    if (safeUser === "USERNAME_ALREADY_EXISTS") {
+    if (createdUser === "USERNAME_ALREADY_EXISTS") {
         return res.status(409).json({
             message: "Bu username zaten kullanılıyor."
         });
@@ -57,7 +53,7 @@ function registerUser(req, res) {
 
     return res.status(201).json({
         message: "Kullanıcı oluşturuldu.",
-        data: safeUser
+        data: createdUser
     });
 }
 
@@ -65,29 +61,24 @@ function loginUser(req, res) {
     const { email, password } = req.body;
 
     const emailError = validateEmail(email);
-    const passwordError = validatePassword(password);
-
     if (emailError) {
-        return res.status(400).json({
-            message: emailError
-        });
+        return res.status(400).json({ message: emailError });
     }
 
+    const passwordError = validatePassword(password);
     if (passwordError) {
-        return res.status(400).json({
-            message: passwordError
-        });
+        return res.status(400).json({ message: passwordError });
     }
 
-    const login = loginUserService(email.trim(), password);
+    const loginResult = loginUserService(email.trim(), password);
 
-    if (login === "USER_NOT_FOUND") {
+    if (loginResult === "USER_NOT_FOUND") {
         return res.status(404).json({
             message: "Kullanıcı bulunamadı."
         });
     }
 
-    if (login === "INVALID_PASSWORD") {
+    if (loginResult === "INVALID_PASSWORD") {
         return res.status(401).json({
             message: "Şifre yanlış."
         });
@@ -95,22 +86,22 @@ function loginUser(req, res) {
 
     return res.status(200).json({
         message: "Giriş başarılı.",
-        data: login
+        data: loginResult
     });
 }
 
 function getAllUsers(req, res) {
-    const safeUsers = getAllUsersService();
+    const users = getAllUsersService();
 
     return res.status(200).json({
         message: "Kullanıcılar getirildi.",
-        data: safeUsers
+        data: users
     });
 }
 
 function getUserById(req, res) {
-    const { id } = req.params;
-    const user = getUserByIdService(id);
+    const profileUserId = req.params.id;
+    const user = getUserByIdService(profileUserId);
 
     if (user === "USER_NOT_FOUND") {
         return res.status(404).json({
@@ -125,35 +116,30 @@ function getUserById(req, res) {
 }
 
 function updateUser(req, res) {
-    const id = req.params.id;
-    const { username, email, avatar, bio } = req.body;
+    const profileUserId = req.params.id;
+    const { username, email, avatar, bio, headerPhoto } = req.body;
 
     if (username !== undefined) {
         const usernameError = validateUsername(username);
-
         if (usernameError) {
-            return res.status(400).json({
-                message: usernameError
-            });
+            return res.status(400).json({ message: usernameError });
         }
     }
 
     if (email !== undefined) {
         const emailError = validateEmail(email);
-
         if (emailError) {
-            return res.status(400).json({
-                message: emailError
-            });
+            return res.status(400).json({ message: emailError });
         }
     }
 
     const updatedUser = updateUserService(
-        id,
+        profileUserId,
         username !== undefined ? username.trim() : undefined,
         email !== undefined ? email.trim() : undefined,
         avatar,
-        bio
+        bio,
+        headerPhoto
     );
 
     if (updatedUser === "USER_NOT_FOUND") {
@@ -181,9 +167,8 @@ function updateUser(req, res) {
 }
 
 function deleteUser(req, res) {
-    const id = req.params.id;
-
-    const deletedUser = deleteUserService(id);
+    const profileUserId = req.params.id;
+    const deletedUser = deleteUserService(profileUserId);
 
     if (deletedUser === "USER_NOT_FOUND") {
         return res.status(404).json({
@@ -198,8 +183,10 @@ function deleteUser(req, res) {
 }
 
 function getPostsByUserId(req, res) {
-    const { id } = req.params;
-    const posts = getPostsByUserIdService(id);
+    const profileUserId = req.params.id;
+    const viewerUserId = req.user?.id;
+
+    const posts = getPostsByUserIdService(profileUserId, viewerUserId);
 
     if (posts === "USER_NOT_FOUND") {
         return res.status(404).json({
@@ -214,8 +201,10 @@ function getPostsByUserId(req, res) {
 }
 
 function getCommentsByUserId(req, res) {
-    const { id } = req.params;
-    const comments = getCommentsByUserIdService(id);
+    const profileUserId = req.params.id;
+    const viewerUserId = req.user?.id;
+
+    const comments = getCommentsByUserIdService(profileUserId, viewerUserId);
 
     if (comments === "USER_NOT_FOUND") {
         return res.status(404).json({
@@ -229,6 +218,45 @@ function getCommentsByUserId(req, res) {
     });
 }
 
+function getProfilePostsByUserId(req, res) {
+    const profileUserId = req.params.id;
+    const viewerUserId = req.user?.id;
+
+    const profilePosts = getProfilePostsByUserIdService(
+        profileUserId,
+        viewerUserId
+    );
+
+    if (profilePosts === "USER_NOT_FOUND") {
+        return res.status(404).json({
+            message: "Kullanıcı bulunamadı."
+        });
+    }
+
+    return res.status(200).json({
+        message: "Kullanıcının profil postları getirildi.",
+        data: profilePosts
+    });
+}
+
+function getProfileRepliesByUserId(req, res) {
+    const viewerUserId = req.user?.id;
+    const profileUserId = req.params.id;
+
+    const profileReplies = getProfileRepliesByUserIdService(profileUserId, viewerUserId);
+
+    if(profileReplies === "USER_NOT_FOUND") {
+        return res.status(404).json({
+            message : "Kullanıcı bulunamadı."
+        });
+    }
+
+    return res.status(200).json({
+        message : "Kullanıcının reply'ları getirildi",
+        data : profileReplies
+    });
+}
+
 module.exports = {
     registerUser,
     loginUser,
@@ -237,5 +265,7 @@ module.exports = {
     updateUser,
     deleteUser,
     getPostsByUserId,
-    getCommentsByUserId
+    getCommentsByUserId,
+    getProfilePostsByUserId,
+    getProfileRepliesByUserId
 };

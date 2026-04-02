@@ -1,42 +1,44 @@
 const { users } = require("../data/users");
 
 function optionalAuthMiddleware(req, res, next) {
-    const authorization = req.headers.authorization;
+    const authorizationHeader = req.headers.authorization;
 
-    if (!authorization) {
+    if (!authorizationHeader) {
         req.user = null;
         return next();
     }
 
-    const parts = authorization.split(" ");
+    const authorizationParts = authorizationHeader.split(" ");
 
-    if (parts.length !== 2 || parts[0] !== "Bearer") {
+    if (authorizationParts.length !== 2 || authorizationParts[0] !== "Bearer") {
         req.user = null;
         return next();
     }
 
-    const token = parts[1];
+    const token = authorizationParts[1];
 
     if (!token.startsWith("user-")) {
         req.user = null;
         return next();
     }
 
-    const userId = Number(token.split("-")[1]);
+    const tokenUserId = Number(token.split("-")[1]);
 
-    if (!userId) {
+    if (!tokenUserId) {
         req.user = null;
         return next();
     }
 
-    const user = users.find(user => user.id === userId);
+    const authenticatedUser = users.find(
+        user => user.id === tokenUserId
+    );
 
-    if (!user) {
+    if (!authenticatedUser) {
         req.user = null;
         return next();
     }
 
-    req.user = user;
+    req.user = authenticatedUser;
     next();
 }
 

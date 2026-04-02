@@ -1,3 +1,5 @@
+
+
 function validateContent(content) {
     if (!content || content.trim() === "") {
         return "İçerik boş bırakılamaz.";

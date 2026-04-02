@@ -1,23 +1,23 @@
 const { users } = require("../data/users");
 
 function authMiddleware(req, res, next) {
-    const authorization = req.headers.authorization;
+    const authorizationHeader = req.headers.authorization;
 
-    if (!authorization) {
+    if (!authorizationHeader) {
         return res.status(401).json({
             message: "Yetkisiz erişim.Token bulunamadı."
         });
     }
 
-    const parts = authorization.split(" ");
+    const authorizationParts = authorizationHeader.split(" ");
 
-    if (parts.length !== 2 || parts[0] !== "Bearer") {
+    if (authorizationParts.length !== 2 || authorizationParts[0] !== "Bearer") {
         return res.status(401).json({
             message: "Yetkisiz erişim.Geçersiz token formatı."
         });
     }
 
-    const token = parts[1];
+    const token = authorizationParts[1];
 
     if (!token.startsWith("user-")) {
         return res.status(401).json({
@@ -25,23 +25,25 @@ function authMiddleware(req, res, next) {
         });
     }
 
-    const userId = Number(token.split("-")[1]);
+    const tokenUserId = Number(token.split("-")[1]);
 
-    if (!userId) {
+    if (!tokenUserId) {
         return res.status(401).json({
             message: "Yetkisiz erişim.Geçersiz token."
         });
     }
 
-    const user = users.find(user => user.id === userId);
+    const authenticatedUser = users.find(
+        user => user.id === tokenUserId
+    );
 
-   if(!user) {
+    if (!authenticatedUser) {
         return res.status(401).json({
-            message : "Yetkisiz erişim.Kullanıcı bulunamadı.",
+            message: "Yetkisiz erişim.Kullanıcı bulunamadı."
         });
-   }
+    }
 
-    req.user = user;
+    req.user = authenticatedUser;
     next();
 }
 

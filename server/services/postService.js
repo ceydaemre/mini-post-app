@@ -2,81 +2,89 @@ const { users } = require("../data/users");
 const { posts } = require("../data/posts");
 const { buildPostResponse, buildCommentResponse } = require("../../utils/userMapper");
 
-function shapeComment(comment, currentUserId) {
-    const commentAuthor = users.find(user => user.id === comment.authorId);
-
-    const shapedComment = buildCommentResponse(comment, commentAuthor, currentUserId);
-    return shapedComment;
+function findUserById(userId) {
+    return users.find(user => user.id === Number(userId));
 }
 
-function shapePost(post, currentUserId) {
-    const postAuthor = users.find(user => user.id === post.authorId);
+function findPostById(postId) {
+    return posts.find(post => post.id === Number(postId));
+}
 
-    const comments = post.comments.map(comment =>
-        shapeComment(comment, currentUserId)
+function shapeComment(comment, viewerUserId) {
+    const commentAuthor = findUserById(comment.authorId);
+
+    return buildCommentResponse(comment, commentAuthor, viewerUserId);
+}
+
+function shapePost(post, viewerUserId) {
+    const postAuthor = findUserById(post.authorId);
+
+    const shapedComments = post.comments.map(comment =>
+        shapeComment(comment, viewerUserId)
     );
 
     let originalPost = null;
 
     if (post.originalPostId) {
-        const foundOriginalPost = posts.find(
-            p => p.id === post.originalPostId
-        );
+        const foundOriginalPost = findPostById(post.originalPostId);
 
         if (foundOriginalPost) {
-            originalPost = shapePost(foundOriginalPost, currentUserId);
+            originalPost = shapePost(foundOriginalPost, viewerUserId);
         }
     }
 
     const quoteRepostCount = posts.filter(
-        p => p.originalPostId === post.id
+        currentPost => currentPost.originalPostId === post.id
     ).length;
 
-    const repostsCount =
-        post.reposts.length + quoteRepostCount;
+    const repostsCount = post.reposts.length + quoteRepostCount;
 
-    const hasReposted =
-        post.reposts.includes(Number(currentUserId)) ||
-        posts.some(p =>
-            p.originalPostId === post.id &&
-            p.authorId === Number(currentUserId)
+    const isRepostedByCurrentUser =
+        post.reposts.some(
+            repost => repost.userId === Number(viewerUserId)
+        ) ||
+        posts.some(
+            currentPost =>
+                currentPost.originalPostId === post.id &&
+                currentPost.authorId === Number(viewerUserId)
         );
 
-    const shaped = buildPostResponse(
+    const shapedPost = buildPostResponse(
         post,
         postAuthor,
-        comments,
-        currentUserId
+        shapedComments,
+        viewerUserId
     );
 
     return {
-        ...shaped,
+        ...shapedPost,
         repostsCount,
-        isRepostedByCurrentUser: hasReposted,
+        isRepostedByCurrentUser,
         originalPost
     };
 }
-function createPostService(authorId, content) {
-    const user = users.find(user => user.id === Number(authorId));
 
-    if (!user) {
+function createPostService(authorId, content) {
+    const author = findUserById(authorId);
+
+    if (!author) {
         return "USER_NOT_FOUND";
     }
 
-    const maxId = posts.length > 0
+    const maxPostId = posts.length > 0
         ? Math.max(...posts.map(post => post.id))
         : 0;
 
     const newPost = {
-        id: maxId + 1,
+        id: maxPostId + 1,
         authorId: Number(authorId),
         content,
         likes: [],
         createdAt: new Date().toISOString(),
         updatedAt: null,
-        originalPostId : null,
+        originalPostId: null,
         comments: [],
-        reposts: [],
+        reposts: []
     };
 
     posts.push(newPost);
@@ -84,8 +92,8 @@ function createPostService(authorId, content) {
     return shapePost(newPost, authorId);
 }
 
-function getAllPostsService(currentUserId) {
-    const shapedPosts = posts.map(post => shapePost(post, currentUserId));
+function getAllPostsService(viewerUserId) {
+    const shapedPosts = posts.map(post => shapePost(post, viewerUserId));
 
     return [...shapedPosts].sort(
         (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
@@ -93,7 +101,7 @@ function getAllPostsService(currentUserId) {
 }
 
 function findPostByIdService(postId) {
-    const post = posts.find(post => post.id === Number(postId));
+    const post = findPostById(postId);
 
     if (!post) {
         return null;
@@ -103,48 +111,50 @@ function findPostByIdService(postId) {
 }
 
 function deletePostService(postId) {
-    const index = posts.findIndex(post => post.id === Number(postId));
+    const postIndex = posts.findIndex(
+        post => post.id === Number(postId)
+    );
 
-    if (index === -1) {
+    if (postIndex === -1) {
         return null;
     }
 
-    const deletedPost = posts.splice(index, 1)[0];
+    const deletedPost = posts.splice(postIndex, 1)[0];
     return deletedPost;
 }
 
-function likePostService(postId, userId) {
-    const post = posts.find(post => post.id === Number(postId));
+function likePostService(postId, actingUserId) {
+    const post = findPostById(postId);
 
     if (!post) {
         return null;
     }
 
-    const userIndex = post.likes.findIndex(
-        likedUserId => likedUserId === Number(userId)
+    const likeIndex = post.likes.findIndex(
+        likedUserId => likedUserId === Number(actingUserId)
     );
 
-    if (userIndex === -1) {
-        post.likes.push(Number(userId));
+    if (likeIndex === -1) {
+        post.likes.push(Number(actingUserId));
     } else {
-        post.likes.splice(userIndex, 1);
+        post.likes.splice(likeIndex, 1);
     }
 
-    return shapePost(post, userId);
+    return shapePost(post, actingUserId);
 }
 
-function getPostByIdService(postId, currentUserId) {
-    const post = posts.find(post => post.id === Number(postId));
+function getPostByIdService(postId, viewerUserId) {
+    const post = findPostById(postId);
 
     if (!post) {
         return null;
     }
 
-    return shapePost(post, currentUserId);
+    return shapePost(post, viewerUserId);
 }
 
-function updatePostService(postId, content, currentUserId) {
-    const post = posts.find(post => post.id === Number(postId));
+function updatePostService(postId, content, actingUserId) {
+    const post = findPostById(postId);
 
     if (!post) {
         return null;
@@ -153,19 +163,19 @@ function updatePostService(postId, content, currentUserId) {
     post.content = content;
     post.updatedAt = new Date().toISOString();
 
-    return shapePost(post, currentUserId);
+    return shapePost(post, actingUserId);
 }
 
 function addCommentService(postId, authorId, content) {
-    const post = posts.find(post => post.id === Number(postId));
+    const post = findPostById(postId);
 
     if (!post) {
         return "POST_NOT_FOUND";
     }
 
-    const user = users.find(user => user.id === Number(authorId));
+    const author = findUserById(authorId);
 
-    if (!user) {
+    if (!author) {
         return "USER_NOT_FOUND";
     }
 
@@ -183,30 +193,31 @@ function addCommentService(postId, authorId, content) {
     };
 
     post.comments.push(newComment);
+
     return shapeComment(newComment, authorId);
 }
 
-function getCommentsByPostIdService(postId, currentUserId) {
-    const post = posts.find(post => post.id === Number(postId));
+function getCommentsByPostIdService(postId, viewerUserId) {
+    const post = findPostById(postId);
 
     if (!post) {
         return null;
     }
 
-    const shapedComments = post.comments.map(comment => shapeComment(comment, currentUserId));
-
-    return shapedComments;
+    return post.comments.map(comment =>
+        shapeComment(comment, viewerUserId)
+    );
 }
 
 function findCommentByIdService(postId, commentId) {
-    const post = posts.find(post => post.id === Number(postId));
+    const post = findPostById(postId);
 
     if (!post) {
         return "POST_NOT_FOUND";
     }
 
     const comment = post.comments.find(
-        comment => comment.id === Number(commentId)
+        currentComment => currentComment.id === Number(commentId)
     );
 
     if (!comment) {
@@ -217,7 +228,7 @@ function findCommentByIdService(postId, commentId) {
 }
 
 function deleteCommentService(postId, commentId) {
-    const post = posts.find(post => post.id === Number(postId));
+    const post = findPostById(postId);
 
     if (!post) {
         return "POST_NOT_FOUND";
@@ -235,15 +246,15 @@ function deleteCommentService(postId, commentId) {
     return deletedComment;
 }
 
-function updateCommentService(postId, commentId, content, currentUserId) {
-    const post = posts.find(post => post.id === Number(postId));
+function updateCommentService(postId, commentId, content, viewerUserId) {
+    const post = findPostById(postId);
 
     if (!post) {
         return "POST_NOT_FOUND";
     }
 
     const comment = post.comments.find(
-        comment => comment.id === Number(commentId)
+        currentComment => currentComment.id === Number(commentId)
     );
 
     if (!comment) {
@@ -253,111 +264,118 @@ function updateCommentService(postId, commentId, content, currentUserId) {
     comment.content = content;
     comment.updatedAt = new Date().toISOString();
 
-    return shapeComment(comment, currentUserId);
+    return shapeComment(comment, viewerUserId);
 }
 
-function likeCommentService(postId, commentId, userId) {
-    const post = posts.find(post => post.id === Number(postId));
+function likeCommentService(postId, commentId, actingUserId) {
+    const post = findPostById(postId);
 
     if (!post) {
         return "POST_NOT_FOUND";
     }
 
     const comment = post.comments.find(
-        comment => comment.id === Number(commentId)
+        currentComment => currentComment.id === Number(commentId)
     );
 
     if (!comment) {
         return "COMMENT_NOT_FOUND";
     }
 
-    const userLikeIndex = comment.likes.findIndex(
-        like => like === Number(userId)
+    const likeIndex = comment.likes.findIndex(
+        likedUserId => likedUserId === Number(actingUserId)
     );
 
-    if (userLikeIndex === -1) {
-        comment.likes.push(Number(userId));
+    if (likeIndex === -1) {
+        comment.likes.push(Number(actingUserId));
     } else {
-        comment.likes.splice(userLikeIndex, 1);
+        comment.likes.splice(likeIndex, 1);
     }
 
-    return shapeComment(comment, userId);
+    return shapeComment(comment, actingUserId);
 }
 
-function getCommentByIdService(postId, commentId, currentUserId) {
-    const post = posts.find(post => post.id === Number(postId));
+function getCommentByIdService(postId, commentId, viewerUserId) {
+    const post = findPostById(postId);
 
     if (!post) {
         return "POST_NOT_FOUND";
     }
 
     const comment = post.comments.find(
-        comment => comment.id === Number(commentId)
+        currentComment => currentComment.id === Number(commentId)
     );
 
     if (!comment) {
         return "COMMENT_NOT_FOUND";
     }
 
-    return shapeComment(comment, currentUserId);
+    return shapeComment(comment, viewerUserId);
 }
 
-function repostPostService(postId, userId) {
-    const post = posts.find(post => post.id === Number(postId));
+function repostPostService(postId, actingUserId) {
+    const post = findPostById(postId);
 
-    if(!post) {
+    if (!post) {
         return "POST_NOT_FOUND";
     }
 
-    const repostIndex = post.reposts.findIndex(repost => repost === Number(userId));
+    const repostIndex = post.reposts.findIndex(
+        repost => repost.userId === Number(actingUserId)
+    );
 
-    if(repostIndex === -1) {
-        post.reposts.push(Number(userId));
+    if (repostIndex === -1) {
+        post.reposts.push({
+            userId: Number(actingUserId),
+            createdAt: new Date().toISOString()
+        });
+
         return {
-            action : "REPOSTED",
-            post : shapePost(post, userId)
-        };
-    } else {
-        post.reposts.splice(repostIndex, 1);
-        return {
-            action : "UNREPOSTED",
-            post : shapePost(post, userId)
+            action: "REPOSTED",
+            post: shapePost(post, actingUserId)
         };
     }
-    
+
+    post.reposts.splice(repostIndex, 1);
+
+    return {
+        action: "UNREPOSTED",
+        post: shapePost(post, actingUserId)
+    };
 }
 
-function quoteRepostPostService(originalPostId, userId, content) {
-    const originalPost = posts.find(post => post.id === Number(originalPostId));
+function quoteRepostPostService(originalPostId, actingUserId, content) {
+    const originalPost = findPostById(originalPostId);
 
-    if(!originalPost) {
+    if (!originalPost) {
         return "POST_NOT_FOUND";
     }
 
-    const user = users.find(user => user.id === Number(userId));
+    const author = findUserById(actingUserId);
 
-    if(!user) {
+    if (!author) {
         return "USER_NOT_FOUND";
     }
 
-    const maxId = posts.length > 0
+    const maxPostId = posts.length > 0
         ? Math.max(...posts.map(post => post.id))
         : 0;
 
-    const newPost = {
-        id : maxId + 1,
-        authorId : Number(userId),
+    const newQuoteRepost = {
+        id: maxPostId + 1,
+        authorId: Number(actingUserId),
         content,
-        likes : [],
-        createdAt : new Date().toISOString(),
-        updatedAt : null,
-        comments : [],
-        reposts : [],
-        originalPostId : Number(originalPostId)
-    }
-    posts.push(newPost);
+        likes: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: null,
+        comments: [],
+        reposts: [],
+        originalPostId: Number(originalPostId)
+    };
 
-    return shapePost(newPost, userId);
+    posts.push(newQuoteRepost);
+
+    return shapePost(newQuoteRepost, actingUserId);
 }
 
 module.exports = {

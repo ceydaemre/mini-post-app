@@ -1,20 +1,20 @@
 const {
     createPostService,
     getAllPostsService,
-    deletePostService,
-    likePostService,
     getPostByIdService,
     updatePostService,
+    deletePostService,
+    likePostService,
+    repostPostService,
+    quoteRepostPostService,
     addCommentService,
     getCommentsByPostIdService,
-    deleteCommentService,
-    updateCommentService,
-    likeCommentService,
     getCommentByIdService,
+    updateCommentService,
+    deleteCommentService,
+    likeCommentService,
     findPostByIdService,
-    findCommentByIdService,
-    repostPostService,
-    quoteRepostPostService
+    findCommentByIdService
 } = require("../services/postService");
 
 const { validateContent } = require("../../utils/validation");
@@ -24,16 +24,13 @@ function createPost(req, res) {
     const { content } = req.body;
 
     const contentError = validateContent(content);
-
     if (contentError) {
-        return res.status(400).json({
-            message: contentError
-        });
+        return res.status(400).json({ message: contentError });
     }
 
-    const newPost = createPostService(authorId, content.trim());
+    const createdPost = createPostService(authorId, content.trim());
 
-    if (newPost === "USER_NOT_FOUND") {
+    if (createdPost === "USER_NOT_FOUND") {
         return res.status(404).json({
             message: "Kullanıcı bulunamadı."
         });
@@ -41,13 +38,13 @@ function createPost(req, res) {
 
     return res.status(201).json({
         message: "Post oluşturuldu.",
-        data: newPost
+        data: createdPost
     });
 }
 
 function getAllPosts(req, res) {
-    const currentUserId = req.user?.id;
-    const posts = getAllPostsService(currentUserId);
+    const viewerUserId = req.user?.id;
+    const posts = getAllPostsService(viewerUserId);
 
     return res.status(200).json({
         message: "Postlar getirildi.",
@@ -55,11 +52,30 @@ function getAllPosts(req, res) {
     });
 }
 
-function deletePost(req, res) {
-    const id = req.params.id;
-    const currentUserId = req.user.id;
+function getPostById(req, res) {
+    const postId = req.params.id;
+    const viewerUserId = req.user?.id;
 
-    const rawPost = findPostByIdService(id);
+    const post = getPostByIdService(postId, viewerUserId);
+
+    if (!post) {
+        return res.status(404).json({
+            message: "Post bulunamadı."
+        });
+    }
+
+    return res.status(200).json({
+        message: "Post getirildi.",
+        data: post
+    });
+}
+
+function updatePost(req, res) {
+    const postId = req.params.id;
+    const actingUserId = req.user.id;
+    const { content } = req.body;
+
+    const rawPost = findPostByIdService(postId);
 
     if (!rawPost) {
         return res.status(404).json({
@@ -67,13 +83,50 @@ function deletePost(req, res) {
         });
     }
 
-    if (rawPost.authorId !== currentUserId) {
+    if (rawPost.authorId !== actingUserId) {
+        return res.status(403).json({
+            message: "Bu postu güncelleme yetkiniz yok."
+        });
+    }
+
+    const contentError = validateContent(content);
+    if (contentError) {
+        return res.status(400).json({ message: contentError });
+    }
+
+    const updatedPost = updatePostService(postId, content.trim(), actingUserId);
+
+    if (!updatedPost) {
+        return res.status(404).json({
+            message: "Post bulunamadı."
+        });
+    }
+
+    return res.status(200).json({
+        message: "Post güncellendi.",
+        data: updatedPost
+    });
+}
+
+function deletePost(req, res) {
+    const postId = req.params.id;
+    const actingUserId = req.user.id;
+
+    const rawPost = findPostByIdService(postId);
+
+    if (!rawPost) {
+        return res.status(404).json({
+            message: "Post bulunamadı."
+        });
+    }
+
+    if (rawPost.authorId !== actingUserId) {
         return res.status(403).json({
             message: "Bu postu silme yetkiniz yok."
         });
     }
 
-    const deletedPost = deletePostService(id);
+    const deletedPost = deletePostService(postId);
 
     if (!deletedPost) {
         return res.status(404).json({
@@ -89,8 +142,9 @@ function deletePost(req, res) {
 
 function likePost(req, res) {
     const postId = req.params.id;
-    const userId = req.user.id;
-    const likedPost = likePostService(postId, userId);
+    const actingUserId = req.user.id;
+
+    const likedPost = likePostService(postId, actingUserId);
 
     if (!likedPost) {
         return res.status(404).json({
@@ -104,86 +158,82 @@ function likePost(req, res) {
     });
 }
 
-function getPostById(req, res) {
-    const id = req.params.id;
-    const currentUserId = req.user?.id;
-    const post = getPostByIdService(id, currentUserId);
+function repostPost(req, res) {
+    const postId = req.params.id;
+    const actingUserId = req.user.id;
 
-    if (!post) {
+    const result = repostPostService(postId, actingUserId);
+
+    if (result === "POST_NOT_FOUND") {
         return res.status(404).json({
             message: "Post bulunamadı."
         });
     }
 
+    const message =
+        result.action === "REPOSTED"
+            ? "Post repostlandı."
+            : "Repost geri alındı.";
+
     return res.status(200).json({
-        message: "Post getirildi.",
-        data: post
+        message,
+        data: result.post
     });
 }
 
-function updatePost(req, res) {
-    const id = req.params.id;
-    const currentUserId = req.user.id;
+function quoteRepostPost(req, res) {
+    const originalPostId = req.params.id;
+    const actingUserId = req.user.id;
     const { content } = req.body;
 
-    const rawPost = findPostByIdService(id);
-
-    if (!rawPost) {
-        return res.status(404).json({
-            message: "Post bulunamadı."
-        });
-    }
-
-    if (rawPost.authorId !== currentUserId) {
-        return res.status(403).json({
-            message: "Bu postu güncelleme yetkiniz yok."
-        });
-    }
-
     const contentError = validateContent(content);
-
     if (contentError) {
-        return res.status(400).json({
-            message: contentError
+        return res.status(400).json({ message: contentError });
+    }
+
+    const createdQuoteRepost = quoteRepostPostService(
+        originalPostId,
+        actingUserId,
+        content.trim()
+    );
+
+    if (createdQuoteRepost === "USER_NOT_FOUND") {
+        return res.status(404).json({
+            message: "Kullanıcı bulunamadı."
         });
     }
 
-    const updatedPost = updatePostService(id, content.trim(), currentUserId);
-
-    if (!updatedPost) {
+    if (createdQuoteRepost === "POST_NOT_FOUND") {
         return res.status(404).json({
             message: "Post bulunamadı."
         });
     }
 
-    return res.status(200).json({
-        message: "Post güncellendi.",
-        data: updatedPost
+    return res.status(201).json({
+        message: "Quote repost oluşturuldu.",
+        data: createdQuoteRepost
     });
 }
 
 function addComment(req, res) {
-    const id = req.params.id;
+    const postId = req.params.id;
     const authorId = req.user.id;
     const { content } = req.body;
 
     const contentError = validateContent(content);
-
     if (contentError) {
-        return res.status(400).json({
-            message: contentError
-        });
+        return res.status(400).json({ message: contentError });
     }
 
-    const newComment = addCommentService(id, authorId, content.trim());
+    const createdComment = addCommentService(postId, authorId, content.trim());
 
-    if (newComment === "POST_NOT_FOUND") {
+    if (createdComment === "POST_NOT_FOUND") {
         return res.status(404).json({
             message: "Post bulunamadı."
         });
     }
 
-    if (newComment === "USER_NOT_FOUND") {
+    if (createdComment === "USER_NOT_FOUND") {
         return res.status(404).json({
             message: "Kullanıcı bulunamadı."
         });
@@ -191,14 +241,15 @@ function addComment(req, res) {
 
     return res.status(201).json({
         message: "Yorum eklendi.",
-        data: newComment
+        data: createdComment
     });
 }
 
 function getCommentsByPostId(req, res) {
-    const id = req.params.id;
-    const currentUserId = req.user?.id;
-    const comments = getCommentsByPostIdService(id, currentUserId);
+    const postId = req.params.id;
+    const viewerUserId = req.user?.id;
+
+    const comments = getCommentsByPostIdService(postId, viewerUserId);
 
     if (!comments) {
         return res.status(404).json({
@@ -212,135 +263,11 @@ function getCommentsByPostId(req, res) {
     });
 }
 
-function deleteComment(req, res) {
-    const postId = req.params.postId;
-    const commentId = req.params.commentId;
-    const currentUserId = req.user.id;
-
-    const comment = findCommentByIdService(postId, commentId);
-
-    if (comment === "POST_NOT_FOUND") {
-        return res.status(404).json({
-            message: "Post bulunamadı."
-        });
-    }
-
-    if (comment === "COMMENT_NOT_FOUND") {
-        return res.status(404).json({
-            message: "Yorum bulunamadı."
-        });
-    }
-
-    if (comment.authorId !== currentUserId) {
-        return res.status(403).json({
-            message: "Bu yorumu silme yetkiniz yok."
-        });
-    }
-
-    const result = deleteCommentService(postId, commentId);
-
-    if (result === "POST_NOT_FOUND") {
-        return res.status(404).json({
-            message: "Post bulunamadı."
-        });
-    }
-
-    if (result === "COMMENT_NOT_FOUND") {
-        return res.status(404).json({
-            message: "Yorum bulunamadı."
-        });
-    }
-
-    return res.status(200).json({
-        message: "Yorum silindi.",
-        data: result
-    });
-}
-
-function updateComment(req, res) {
-    const postId = req.params.postId;
-    const commentId = req.params.commentId;
-    const { content } = req.body;
-    const currentUserId = req.user.id;
-
-    const comment = findCommentByIdService(postId, commentId);
-
-    if (comment === "POST_NOT_FOUND") {
-        return res.status(404).json({
-            message: "Post bulunamadı."
-        });
-    }
-
-    if (comment === "COMMENT_NOT_FOUND") {
-        return res.status(404).json({
-            message: "Yorum bulunamadı."
-        });
-    }
-
-    if (comment.authorId !== currentUserId) {
-        return res.status(403).json({
-            message: "Bu yorumu güncelleme yetkiniz yok."
-        });
-    }
-
-    const contentError = validateContent(content);
-
-    if (contentError) {
-        return res.status(400).json({
-            message: contentError
-        });
-    }
-
-    const result = updateCommentService(postId, commentId, content.trim(), currentUserId);
-
-    if (result === "POST_NOT_FOUND") {
-        return res.status(404).json({
-            message: "Post bulunamadı."
-        });
-    }
-
-    if (result === "COMMENT_NOT_FOUND") {
-        return res.status(404).json({
-            message: "Yorum bulunamadı."
-        });
-    }
-
-    return res.status(200).json({
-        message: "Yorum güncellendi.",
-        data: result
-    });
-}
-
-function likeComment(req, res) {
-    const postId = req.params.postId;
-    const commentId = req.params.commentId;
-    const userId = req.user.id;
-
-    const result = likeCommentService(postId, commentId, userId);
-
-    if (result === "POST_NOT_FOUND") {
-        return res.status(404).json({
-            message: "Post bulunamadı."
-        });
-    }
-
-    if (result === "COMMENT_NOT_FOUND") {
-        return res.status(404).json({
-            message: "Yorum bulunamadı."
-        });
-    }
-
-    return res.status(200).json({
-        message: "Yorum beğenildi.",
-        data: result
-    });
-}
-
 function getCommentById(req, res) {
     const { postId, commentId } = req.params;
-    const currentUserId = req.user?.id;
+    const viewerUserId = req.user?.id;
 
-    const comment = getCommentByIdService(postId, commentId, currentUserId);
+    const comment = getCommentByIdService(postId, commentId, viewerUserId);
 
     if (comment === "POST_NOT_FOUND") {
         return res.status(404).json({
@@ -360,111 +287,142 @@ function getCommentById(req, res) {
     });
 }
 
-function repostPost(req, res) {
-    const postId = req.params.id;
-    const userId = req.user.id;
-    const result = repostPostService(postId, userId);
+function updateComment(req, res) {
+    const { postId, commentId } = req.params;
+    const actingUserId = req.user.id;
+    const { content } = req.body;
 
-    if(result === "POST_NOT_FOUND") {
-        return res.status(404).json({
-            message : "Post bulunamadı."
-        });
-    }
+    const rawComment = findCommentByIdService(postId, commentId);
 
-    const message = 
-        result.action === "REPOSTED"
-        ? "Post repostlandı."
-        : "Repost geri alındı.";
-
-    return res.status(200).json({
-        message,
-        data : result.post
-    });
-}
-
-function quoteRepostPost(req, res) {
-    const originalPostId = req.params.id;
-    const userId = req.user.id;
-    const content = req.body.content;
-
-    const contentError = validateContent(content);
-
-    if(contentError) {
-        return res.status(400).json({
-            message : contentError
-        });
-    }
-
-    const result = quoteRepostPostService(originalPostId, userId, content.trim());
-
-    if(result === "USER_NOT_FOUND") {
-        return res.status(404).json({
-            message : "Kullanıcı bulunamadı." 
-        });
-    }
-
-    if(result === "POST_NOT_FOUND") {
-        return res.status(404).json({
-            message : "Post bulunamadı."
-        });
-    }
-
-    return res.status(201).json({
-        message : "Post alıntılandı.",
-        data : result
-    });
-}
-
-function quoteRepostPost(req, res) {
-    const originalPostId = req.params.id;
-    const userId = req.user.id;
-    const content = req.body.content;
-
-    const contentError = validateContent(content);
-
-    if (contentError) {
-        return res.status(400).json({
-            message: contentError
-        });
-    }
-
-    const result = quoteRepostPostService(
-        originalPostId,
-        userId,
-        content.trim()
-    );
-
-    if (result === "USER_NOT_FOUND") {
-        return res.status(404).json({
-            message: "Kullanıcı bulunamadı."
-        });
-    }
-
-    if (result === "POST_NOT_FOUND") {
+    if (rawComment === "POST_NOT_FOUND") {
         return res.status(404).json({
             message: "Post bulunamadı."
         });
     }
 
-    return res.status(201).json({
-        message: "Quote repost oluşturuldu.",
-        data: result
+    if (rawComment === "COMMENT_NOT_FOUND") {
+        return res.status(404).json({
+            message: "Yorum bulunamadı."
+        });
+    }
+
+    if (rawComment.authorId !== actingUserId) {
+        return res.status(403).json({
+            message: "Bu yorumu güncelleme yetkiniz yok."
+        });
+    }
+
+    const contentError = validateContent(content);
+    if (contentError) {
+        return res.status(400).json({ message: contentError });
+    }
+
+    const updatedComment = updateCommentService(
+        postId,
+        commentId,
+        content.trim(),
+        actingUserId
+    );
+
+    if (updatedComment === "POST_NOT_FOUND") {
+        return res.status(404).json({
+            message: "Post bulunamadı."
+        });
+    }
+
+    if (updatedComment === "COMMENT_NOT_FOUND") {
+        return res.status(404).json({
+            message: "Yorum bulunamadı."
+        });
+    }
+
+    return res.status(200).json({
+        message: "Yorum güncellendi.",
+        data: updatedComment
+    });
+}
+
+function deleteComment(req, res) {
+    const { postId, commentId } = req.params;
+    const actingUserId = req.user.id;
+
+    const rawComment = findCommentByIdService(postId, commentId);
+
+    if (rawComment === "POST_NOT_FOUND") {
+        return res.status(404).json({
+            message: "Post bulunamadı."
+        });
+    }
+
+    if (rawComment === "COMMENT_NOT_FOUND") {
+        return res.status(404).json({
+            message: "Yorum bulunamadı."
+        });
+    }
+
+    if (rawComment.authorId !== actingUserId) {
+        return res.status(403).json({
+            message: "Bu yorumu silme yetkiniz yok."
+        });
+    }
+
+    const deletedComment = deleteCommentService(postId, commentId);
+
+    if (deletedComment === "POST_NOT_FOUND") {
+        return res.status(404).json({
+            message: "Post bulunamadı."
+        });
+    }
+
+    if (deletedComment === "COMMENT_NOT_FOUND") {
+        return res.status(404).json({
+            message: "Yorum bulunamadı."
+        });
+    }
+
+    return res.status(200).json({
+        message: "Yorum silindi.",
+        data: deletedComment
+    });
+}
+
+function likeComment(req, res) {
+    const { postId, commentId } = req.params;
+    const actingUserId = req.user.id;
+
+    const likedComment = likeCommentService(postId, commentId, actingUserId);
+
+    if (likedComment === "POST_NOT_FOUND") {
+        return res.status(404).json({
+            message: "Post bulunamadı."
+        });
+    }
+
+    if (likedComment === "COMMENT_NOT_FOUND") {
+        return res.status(404).json({
+            message: "Yorum bulunamadı."
+        });
+    }
+
+    return res.status(200).json({
+        message: "Yorum beğenildi.",
+        data: likedComment
     });
 }
 
 module.exports = {
     createPost,
     getAllPosts,
-    deletePost,
-    likePost,
     getPostById,
     updatePost,
+    deletePost,
+    likePost,
+    repostPost,
+    quoteRepostPost,
     addComment,
     getCommentsByPostId,
-    deleteComment,
-    updateComment,
-    likeComment,
     getCommentById,
-    repostPost,
-    quoteRepostPost
+    updateComment,
+    deleteComment,
+    likeComment
 };

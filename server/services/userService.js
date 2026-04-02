@@ -1,31 +1,36 @@
-const { buildSafeUser, buildPostResponse, buildCommentResponse } = require("../../utils/userMapper");
+const { buildSafeUser } = require("../../utils/userMapper");
 const { shapePost, shapeComment } = require("./postService");
 const { users } = require("../data/users");
 const { posts } = require("../data/posts");
 
-function registerUserService(username, email, password, avatar, bio) {
-    const existingMail = users.find(user => user.email === email);
-    const existingUsername = users.find(user => user.username === username);
+function findUserById(userId) {
+    return users.find(user => user.id === Number(userId));
+}
 
-    if (existingMail) {
+function registerUserService(username, email, password, avatar, bio, headerPhoto) {
+    const existingUserWithEmail = users.find(user => user.email === email);
+    const existingUserWithUsername = users.find(user => user.username === username);
+
+    if (existingUserWithEmail) {
         return "EMAIL_ALREADY_EXISTS";
     }
 
-    if (existingUsername) {
+    if (existingUserWithUsername) {
         return "USERNAME_ALREADY_EXISTS";
     }
 
-    const maxId = users.length > 0
+    const maxUserId = users.length > 0
         ? Math.max(...users.map(user => user.id))
         : 0;
 
     const newUser = {
-        id: maxId + 1,
+        id: maxUserId + 1,
         username,
         email,
         password,
         avatar: avatar || "default-avatar.png",
         bio: bio || "",
+        headerPhoto: headerPhoto || "default-header.png",
         createdAt: new Date().toISOString(),
         updatedAt: null
     };
@@ -46,11 +51,9 @@ function loginUserService(email, password) {
         return "INVALID_PASSWORD";
     }
 
-    const token = "user-" + user.id;
-
     return {
         user: buildSafeUser(user),
-        token
+        token: `user-${user.id}`
     };
 }
 
@@ -58,89 +61,101 @@ function getAllUsersService() {
     return users.map(buildSafeUser);
 }
 
-function getUserByIdService(userId) {
-    const user = users.find(user => user.id === Number(userId));
+function getUserByIdService(profileUserId) {
+    const profileUser = findUserById(profileUserId);
 
-    if (!user) {
+    if (!profileUser) {
         return "USER_NOT_FOUND";
     }
 
-    return buildSafeUser(user);
+    return buildSafeUser(profileUser);
 }
 
-function updateUserService(userId, username, email, avatar, bio) {
-    const user = users.find(user => user.id === Number(userId));
+function updateUserService(profileUserId, username, email, avatar, bio, headerPhoto) {
+    const profileUser = findUserById(profileUserId);
 
-    if (!user) {
+    if (!profileUser) {
         return "USER_NOT_FOUND";
     }
 
-    const existingEmail = users.find(
-        user => user.email === email && user.id !== Number(userId)
+    const existingUserWithEmail = users.find(
+        user =>
+            user.email === email &&
+            user.id !== Number(profileUserId)
     );
 
-    const existingUsername = users.find(
-        user => user.username === username && user.id !== Number(userId)
+    const existingUserWithUsername = users.find(
+        user =>
+            user.username === username &&
+            user.id !== Number(profileUserId)
     );
 
-    if (email !== undefined && existingEmail) {
+    if (email !== undefined && existingUserWithEmail) {
         return "EMAIL_ALREADY_EXISTS";
     }
 
-    if (username !== undefined && existingUsername) {
+    if (username !== undefined && existingUserWithUsername) {
         return "USERNAME_ALREADY_EXISTS";
     }
 
     if (username !== undefined) {
-        user.username = username;
+        profileUser.username = username;
     }
 
     if (email !== undefined) {
-        user.email = email;
+        profileUser.email = email;
     }
 
     if (avatar !== undefined) {
-        user.avatar = avatar;
+        profileUser.avatar = avatar;
     }
 
     if (bio !== undefined) {
-        user.bio = bio;
+        profileUser.bio = bio;
     }
 
-    user.updatedAt = new Date().toISOString();
+    if (headerPhoto !== undefined) {
+        profileUser.headerPhoto = headerPhoto;
+    }
 
-    return buildSafeUser(user);
+    profileUser.updatedAt = new Date().toISOString();
+
+    return buildSafeUser(profileUser);
 }
 
-function deleteUserService(userId) {
-    const index = users.findIndex(user => user.id === Number(userId));
+function deleteUserService(profileUserId) {
+    const userIndex = users.findIndex(
+        user => user.id === Number(profileUserId)
+    );
 
-    if (index === -1) {
+    if (userIndex === -1) {
         return "USER_NOT_FOUND";
     }
 
-    const deletedUser = users.splice(index, 1)[0];
-
+    const deletedUser = users.splice(userIndex, 1)[0];
     return buildSafeUser(deletedUser);
 }
 
-function getPostsByUserIdService(userId) {
-    const user = users.find(user => user.id === Number(userId));
+function getPostsByUserIdService(profileUserId, viewerUserId) {
+    const profileUser = findUserById(profileUserId);
 
-    if (!user) {
+    if (!profileUser) {
         return "USER_NOT_FOUND";
     }
 
-    const userPosts = posts.filter(post => post.authorId === Number(userId));
-    const shapedPosts = userPosts.map(post => shapePost(post));
+    const authoredPosts = posts.filter(
+        post => post.authorId === Number(profileUserId)
+    );
 
-    return shapedPosts;
+    return authoredPosts.map(post =>
+        shapePost(post, viewerUserId)
+    );
 }
 
-function getCommentsByUserIdService(userId) {
-    const user = users.find(user => user.id === Number(userId));
+function getCommentsByUserIdService(profileUserId, viewerUserId) {
+    const profileUser = findUserById(profileUserId);
 
-    if (!user) {
+    if (!profileUser) {
         return "USER_NOT_FOUND";
     }
 
@@ -148,15 +163,87 @@ function getCommentsByUserIdService(userId) {
 
     posts.forEach(post => {
         const matchedComments = post.comments.filter(
-            comment => comment.authorId === Number(userId)
+            comment => comment.authorId === Number(profileUserId)
         );
 
-        const shaped = matchedComments.map(comment => shapeComment(comment));
+        const shapedComments = matchedComments.map(comment =>
+            shapeComment(comment, viewerUserId)
+        );
 
-        userComments.push(...shaped);
+        userComments.push(...shapedComments);
     });
 
     return userComments;
+}
+
+function getProfilePostsByUserIdService(profileUserId, viewerUserId) {
+    const profileUser = findUserById(profileUserId);
+
+    if (!profileUser) {
+        return "USER_NOT_FOUND";
+    }
+
+    const timelineItems = [];
+
+    posts.forEach(post => {
+        if (post.authorId === Number(profileUserId)) {
+            timelineItems.push({
+                type: "POST",
+                timelineCreatedAt: post.createdAt,
+                post: shapePost(post, viewerUserId)
+            });
+
+            return;
+        }
+
+        const userRepost = post.reposts.find(
+            repost => repost.userId === Number(profileUserId)
+        );
+
+        if (userRepost) {
+            timelineItems.push({
+                type: "REPOST",
+                timelineCreatedAt: userRepost.createdAt,
+                post: shapePost(post, viewerUserId)
+            });
+        }
+    });
+
+    timelineItems.sort(
+        (a, b) =>
+            new Date(b.timelineCreatedAt) - new Date(a.timelineCreatedAt)
+    );
+
+    return timelineItems;
+}
+
+function getProfileRepliesByUserIdService(profileUserId, viewerUserId) {
+
+    const profileAuthor = users.find(user => user.id === Number(profileUserId));
+
+    if(!profileAuthor) {
+        return "USER_NOT_FOUND";
+    }
+
+    const timelineItems = [];
+
+    posts.forEach(post => {
+        post.comments.forEach(comment => {
+            if(comment.authorId === Number(profileUserId)) {
+                timelineItems.push({
+                    type : "REPLY",
+                    timelineCreatedAt : comment.createdAt,
+                    comment : shapeComment(comment, viewerUserId),
+                    post : shapePost(post, viewerUserId)
+                });
+            }
+
+            timelineItems.sort((a, b) => new Date(b.timelineCreatedAt) - new Date(a.timelineCreatedAt));
+
+        });
+    });
+  
+    return timelineItems;
 }
 
 module.exports = {
@@ -167,5 +254,7 @@ module.exports = {
     updateUserService,
     deleteUserService,
     getPostsByUserIdService,
-    getCommentsByUserIdService
+    getCommentsByUserIdService,
+    getProfilePostsByUserIdService,
+    getProfileRepliesByUserIdService
 };

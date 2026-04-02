@@ -1,3 +1,5 @@
+const { head } = require("../server/routes/postRoutes");
+
 function buildSafeUser(user) {
   return {
     id: user.id,
@@ -7,6 +9,7 @@ function buildSafeUser(user) {
     bio: user.bio,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
+    headerPhoto : user.headerPhoto
   };
 }
 
@@ -14,7 +17,7 @@ function buildPublicUser(user) {
   return {
     id: user.id,
     username: user.username,
-    avatar: user.avatar
+    avatar: user.avatar,
   };
 }
 
@@ -46,6 +49,8 @@ function buildPostResponse(post, author, comments, currentUserId) {
     comments: comments
   };
 }
+
+
 
 module.exports = {
   buildSafeUser,

@@ -4,18 +4,18 @@ const router = express.Router();
 const {
     createPost,
     getAllPosts,
-    deletePost,
-    likePost,
     getPostById,
     updatePost,
+    deletePost,
+    likePost,
+    repostPost,
+    quoteRepostPost,
     addComment,
     getCommentsByPostId,
-    deleteComment,
-    updateComment,
-    likeComment,
     getCommentById,
-    repostPost,
-    quoteRepostPost
+    updateComment,
+    deleteComment,
+    likeComment
 } = require("../controllers/postController");
 
 const authMiddleware = require("../middleware/authMiddleware");
@@ -27,17 +27,17 @@ router.get("/", optionalAuthMiddleware, getAllPosts);
 router.get("/:id", optionalAuthMiddleware, getPostById);
 router.patch("/:id", authMiddleware, updatePost);
 router.delete("/:id", authMiddleware, deletePost);
-router.patch("/:id/repost",authMiddleware ,repostPost);
+
 router.patch("/:id/likes", authMiddleware, likePost);
-router.post("/:id/quote-repost", authMiddleware, )
+router.patch("/:id/repost",authMiddleware ,repostPost);
 router.post("/:id/quote-repost", authMiddleware, quoteRepostPost);
 
 router.post("/:id/comments", authMiddleware, addComment);
 router.get("/:id/comments", optionalAuthMiddleware, getCommentsByPostId);
 
-router.delete("/:postId/comments/:commentId", authMiddleware, deleteComment);
-router.patch("/:postId/comments/:commentId", authMiddleware, updateComment);
-router.patch("/:postId/comments/:commentId/likes", authMiddleware, likeComment);
 router.get("/:postId/comments/:commentId", optionalAuthMiddleware, getCommentById);
+router.patch("/:postId/comments/:commentId", authMiddleware, updateComment);
+router.delete("/:postId/comments/:commentId", authMiddleware, deleteComment);
+router.patch("/:postId/comments/:commentId/likes", authMiddleware, likeComment);
 
 module.exports = router;
