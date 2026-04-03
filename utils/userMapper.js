@@ -21,7 +21,7 @@ function buildPublicUser(user) {
   };
 }
 
-function buildCommentResponse(comment, author, currentUserId) {
+function buildCommentResponse(comment, author, currentUserId, replies) {
   return {
     id: comment.id,
     content: comment.content,
@@ -31,7 +31,11 @@ function buildCommentResponse(comment, author, currentUserId) {
     likesCount: comment.likes.length,
     createdAt: comment.createdAt,
     updatedAt: comment.updatedAt,
-    author: buildPublicUser(author)
+    parentCommentId: comment.parentCommentId,
+    replies: replies,
+    repliesCount: replies.length,
+    author: buildPublicUser(author),
+
   };
 }
 

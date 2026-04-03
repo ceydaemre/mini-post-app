@@ -14,7 +14,9 @@ const {
     deleteCommentService,
     likeCommentService,
     findPostByIdService,
-    findCommentByIdService
+    findCommentByIdService,
+    addReplyToCommentService,
+    getCommentThreadService
 } = require("../services/postService");
 
 const { validateContent } = require("../../utils/validation");
@@ -410,6 +412,70 @@ function likeComment(req, res) {
     });
 }
 
+function addReplyToComment(req, res) {
+    const { parentCommentId, postId } = req.params;
+    const authorId = req.user.id;
+    const content = req.body.content;
+
+    const contentError = validateContent(content.trim());
+
+    if(contentError) {
+        return res.status(400).json({
+            message : contentError
+        });
+    }
+
+    const result = addReplyToCommentService(postId, parentCommentId, authorId, content);
+
+    if(result === "COMMENT_NOT_FOUND") {
+        return res.status(404).json({
+            message : "Yorum bulunamadı."
+        });
+    }
+
+    if(result === "POST_NOT_FOUND") {
+        return res.status(404).json({
+            message : "Post bulunamadı."
+        });
+    }
+
+    if(result === "USER_NOT_FOUND") {
+        return res.status(404).json({
+            message : "Kullanıcı bulunamadı."
+        });
+    }
+
+    return res.status(201).json({
+        message : "Yoruma yanıt eklendi.",
+        data : result
+    });
+}
+
+function getCommentThread(req, res) {
+    const { parentPostId, commentId } = req.params;
+    const viewerUserId = req.user?.id;
+
+    const result = getCommentThreadService(parentPostId, commentId, viewerUserId);
+
+    if(result === "POST_NOT_FOUND") {
+        return res.status(404).json({
+            message : "Post bulunamadı."
+        });
+    }
+
+    if(result === "COMMENT_NOT_FOUND") {
+        return res.status(404).json({
+            message : "Yorum bulunamadı."
+        });
+    }
+
+    return res.status(200).json({
+        message : "Yorum threadi getirildi.",
+        data : result
+    });
+}
+
+
 module.exports = {
     createPost,
     getAllPosts,
@@ -424,5 +490,7 @@ module.exports = {
     getCommentById,
     updateComment,
     deleteComment,
-    likeComment
+    likeComment,
+    addReplyToComment,
+    getCommentThread
 };

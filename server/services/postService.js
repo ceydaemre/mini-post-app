@@ -10,10 +10,40 @@ function findPostById(postId) {
     return posts.find(post => post.id === Number(postId));
 }
 
+function flattenComments(comments) {
+    const flattenedComments = [];
+
+    comments.forEach(comment => {
+        flattenedComments.push(comment);
+
+        const flattenedReplies = flattenComments(comment.replies);
+        flattenedComments.push(...flattenedReplies);
+    });
+
+    return flattenedComments;
+}
+
+function findCommentByIdRecursive(comments, commentId) {
+    for(const comment of comments) {
+        if(comment.id === Number(commentId)) {
+            return comment;
+        }
+
+        const foundComment = findCommentByIdRecursive(comment.replies, commentId);
+
+        if(foundComment) {
+            return foundComment;
+        }
+    }
+    return null;
+}
+
 function shapeComment(comment, viewerUserId) {
     const commentAuthor = findUserById(comment.authorId);
 
-    return buildCommentResponse(comment, commentAuthor, viewerUserId);
+    const shapedReplies = comment.replies.map(reply => shapeComment(reply, viewerUserId));
+
+    return buildCommentResponse(comment, commentAuthor, viewerUserId, shapedReplies);
 }
 
 function shapePost(post, viewerUserId) {
@@ -179,8 +209,10 @@ function addCommentService(postId, authorId, content) {
         return "USER_NOT_FOUND";
     }
 
-    const maxCommentId = post.comments.length > 0
-        ? Math.max(...post.comments.map(comment => comment.id))
+    const allComments = flattenComments(post.comments);
+
+    const maxCommentId = allComments.length > 0
+        ? Math.max(...allComments.map(comment => comment.id))
         : 0;
 
     const newComment = {
@@ -189,7 +221,9 @@ function addCommentService(postId, authorId, content) {
         content,
         likes: [],
         createdAt: new Date().toISOString(),
-        updatedAt: null
+        updatedAt: null,
+        parentCommentId: null,
+        replies: []
     };
 
     post.comments.push(newComment);
@@ -216,15 +250,33 @@ function findCommentByIdService(postId, commentId) {
         return "POST_NOT_FOUND";
     }
 
-    const comment = post.comments.find(
-        currentComment => currentComment.id === Number(commentId)
-    );
+    const comment = findCommentByIdRecursive(post.comments, commentId);
 
     if (!comment) {
         return "COMMENT_NOT_FOUND";
     }
 
     return comment;
+}
+
+function findCommentLocationRecursive(comments, commentId) {
+    for(let index = 0; index < comments.lenght; index++) {
+        const comment = comments[index];
+
+        if(comment.id === Number(commentId)) {
+            return {
+                comment,
+                commentIndex: index,
+                commentsArray: comments
+            };
+        }
+
+        const foundLocation = findCommentLocationRecursive(comment.replies, commentId);
+
+        if(foundLocation) {
+            return foundLocation;
+        }
+    }
 }
 
 function deleteCommentService(postId, commentId) {
@@ -234,15 +286,13 @@ function deleteCommentService(postId, commentId) {
         return "POST_NOT_FOUND";
     }
 
-    const commentIndex = post.comments.findIndex(
-        comment => comment.id === Number(commentId)
-    );
+    const foundLocation = findCommentLocationRecursive(post.comments, commentId);
 
-    if (commentIndex === -1) {
+    if (!foundLocation) {
         return "COMMENT_NOT_FOUND";
     }
 
-    const deletedComment = post.comments.splice(commentIndex, 1)[0];
+    const deletedComment = foundLocation.commentsArray.splice(foundLocation.commentIndex, 1)[0];
     return deletedComment;
 }
 
@@ -253,9 +303,7 @@ function updateCommentService(postId, commentId, content, viewerUserId) {
         return "POST_NOT_FOUND";
     }
 
-    const comment = post.comments.find(
-        currentComment => currentComment.id === Number(commentId)
-    );
+    const comment = findCommentByIdRecursive(post.comments, commentId);
 
     if (!comment) {
         return "COMMENT_NOT_FOUND";
@@ -274,9 +322,7 @@ function likeCommentService(postId, commentId, actingUserId) {
         return "POST_NOT_FOUND";
     }
 
-    const comment = post.comments.find(
-        currentComment => currentComment.id === Number(commentId)
-    );
+    const comment = findCommentByIdRecursive(post.comments, commentId);
 
     if (!comment) {
         return "COMMENT_NOT_FOUND";
@@ -302,9 +348,7 @@ function getCommentByIdService(postId, commentId, viewerUserId) {
         return "POST_NOT_FOUND";
     }
 
-    const comment = post.comments.find(
-        currentComment => currentComment.id === Number(commentId)
-    );
+    const comment = findCommentByIdRecursive(post.comments, commentId)
 
     if (!comment) {
         return "COMMENT_NOT_FOUND";
@@ -378,9 +422,80 @@ function quoteRepostPostService(originalPostId, actingUserId, content) {
     return shapePost(newQuoteRepost, actingUserId);
 }
 
+function addReplyToCommentService(postId, parentCommentId, authorId, content) {
+
+    const post = findPostById(postId);
+
+    if(!post) {
+        return "POST_NOT_FOUND";
+    }
+
+    const author = findUserById(authorId);
+
+    if(!author) {
+        return "USER_NOT_FOUND";
+    }
+
+    const parentComment = findCommentByIdRecursive(post.comments, parentCommentId);
+
+    if(!parentComment) {
+        return "COMMENT_NOT_FOUND";
+    }
+
+    const allComments = flattenComments(post.comments);
+
+    const maxCommentId = allComments.length > 0
+                            ? Math.max(...allComments.map(comment => comment.id))
+                            : 0;
+    
+    const newReply = {
+        id : maxCommentId + 1,
+        authorId : Number(authorId),
+        content,
+        likes : [],
+        createdAt : new Date().toISOString(),
+        updatedAt : null,
+        parentCommentId : Number(parentCommentId),
+        replies : []
+    }
+
+    parentComment.replies.push(newReply);
+
+    return shapeComment(newReply, authorId);
+}
+
+function getCommentThreadService(parentPostId, commentId, viewerUserId){
+    const parentPost = findPostById(parentPostId);
+
+    if(!parentPost) {
+        return "POST_NOT_FOUND"
+    };
+
+    const comment = findCommentByIdRecursive(parentPost.comments, commentId);
+
+    if(!comment) {
+        return "COMMENT_NOT_FOUND"
+    };
+
+    const shapedParentPost = shapePost(parentPost, viewerUserId);
+    const shapedComment = shapeComment(comment, viewerUserId);
+
+    const { replies, ...commentWithoutReplies } = shapedComment; 
+    // shapedComment objesini parçalar, replies alanını ayrı alır,
+    // geri kalan alanları commentWithoutReplies objesine koyar
+    return {
+        parentPost: shapedParentPost,
+        comment: commentWithoutReplies,
+        replies: replies
+    };
+
+}
+
 module.exports = {
     shapeComment,
     shapePost,
+    flattenComments,
+    findCommentByIdRecursive,
     createPostService,
     getAllPostsService,
     findPostByIdService,
@@ -391,10 +506,13 @@ module.exports = {
     addCommentService,
     getCommentsByPostIdService,
     findCommentByIdService,
+    findCommentLocationRecursive,
     deleteCommentService,
     updateCommentService,
     likeCommentService,
     getCommentByIdService,
     repostPostService,
-    quoteRepostPostService
+    quoteRepostPostService,
+    addReplyToCommentService,
+    getCommentThreadService
 };

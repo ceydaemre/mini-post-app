@@ -217,31 +217,49 @@ function getProfilePostsByUserIdService(profileUserId, viewerUserId) {
     return timelineItems;
 }
 
+function collectRepliesByUserFromComments(comments, profileUserId, viewerUserId, parentPost, timelineItems) {
+    comments.forEach(comment => {
+        if(comment.authorId === Number(profileUserId)) {
+            timelineItems.push({
+                type : "REPLY",
+                timelineCreatedAt : comment.createdAt,
+                comment : shapeComment(comment, viewerUserId),
+                post : shapePost(parentPost, viewerUserId)
+            });
+        }
+
+        collectRepliesByUserFromComments(
+            comment.replies,
+            profileUserId,
+            viewerUserId,
+            parentPost,
+            timelineItems
+        );
+    })
+}
+
 function getProfileRepliesByUserIdService(profileUserId, viewerUserId) {
 
-    const profileAuthor = users.find(user => user.id === Number(profileUserId));
+    const profileUser = users.find(user => user.id === Number(profileUserId));
 
-    if(!profileAuthor) {
+    if(!profileUser) {
         return "USER_NOT_FOUND";
     }
 
     const timelineItems = [];
 
     posts.forEach(post => {
-        post.comments.forEach(comment => {
-            if(comment.authorId === Number(profileUserId)) {
-                timelineItems.push({
-                    type : "REPLY",
-                    timelineCreatedAt : comment.createdAt,
-                    comment : shapeComment(comment, viewerUserId),
-                    post : shapePost(post, viewerUserId)
-                });
-            }
-
-            timelineItems.sort((a, b) => new Date(b.timelineCreatedAt) - new Date(a.timelineCreatedAt));
-
-        });
+        
+        collectRepliesByUserFromComments(
+            post.comments,
+            profileUserId,
+            viewerUserId,
+            post,
+            timelineItems
+        );
     });
+
+    timelineItems.sort((a, b) => new Date(b.timelineCreatedAt) - new Date(a.timelineCreatedAt));
   
     return timelineItems;
 }

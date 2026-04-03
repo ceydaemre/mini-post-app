@@ -15,7 +15,9 @@ const {
     getCommentById,
     updateComment,
     deleteComment,
-    likeComment
+    likeComment,
+    addReplyToComment,
+    getCommentThread
 } = require("../controllers/postController");
 
 const authMiddleware = require("../middleware/authMiddleware");
@@ -38,6 +40,12 @@ router.get("/:id/comments", optionalAuthMiddleware, getCommentsByPostId);
 router.get("/:postId/comments/:commentId", optionalAuthMiddleware, getCommentById);
 router.patch("/:postId/comments/:commentId", authMiddleware, updateComment);
 router.delete("/:postId/comments/:commentId", authMiddleware, deleteComment);
+router.get("/:parentPostId/comments/:commentId/thread", optionalAuthMiddleware, getCommentThread);
+router.post("/:postId/comments/:parentCommentId/replies", authMiddleware, addReplyToComment);
 router.patch("/:postId/comments/:commentId/likes", authMiddleware, likeComment);
 
 module.exports = router;
+
+
+
+
